@@ -1,161 +1,171 @@
 package main
 
 import (
-	"net"
 	"fmt"
+	"errors"
+	"time"
 )
 
-func registerSession() []byte {
+func (c Controller) buildRegisterSession() []byte {
 
 	// from CIP Network Library Vol 2. Section 2-4.4.2.
-	var data []byte
-	//eip command
-	data = append(data, []byte{0x65, 0x00}...)
-	//eip length
-	data = append(data, []byte{0x04, 0x00}...)
-	//eip session handle
-	data = append(data, []byte{0x00, 0x00, 0x00, 0x00}...)
-	//eip status
-	data = append(data, []byte{0x00, 0x00, 0x00, 0x00}...)
-	//eip context
-	data = append(data, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}...)
-	//eip options
-	data = append(data, []byte{0x00, 0x00, 0x00, 0x00}...)
-	//eip protocol version
-	data = append(data, []byte{0x01, 0x00}...)
-	//eip option flay
-	data = append(data, []byte{0x00, 0x00}...)
+	eipCommand := []byte{0x65, 0x00}
+	eipLength := []byte{0x04, 0x00}
+	eipSessionHandle := c.sessionHandle
+	eipStatus := []byte{0x00, 0x00, 0x00, 0x00}
+	eipContext := c.context
+	eipOptions := []byte{0x00, 0x00, 0x00, 0x00}
+	eipProtocolVersion := []byte{0x01, 0x00}
+	eipOptionFlag := []byte{0x00, 0x00}
+
+	data := eipCommand
+	data = append(data, eipLength...)
+	data = append(data, eipSessionHandle...)
+	data = append(data, eipStatus...)
+	data = append(data, eipContext...)
+	data = append(data, eipOptions...)
+	data = append(data, eipProtocolVersion...)
+	data = append(data, eipOptionFlag...)
 
 	return data
 }
 
-func forwardOpen(sessionHandle []byte) []byte {
-	fwdOpen := cipForwardOpen()
-	rrDataHeader := eipSendRRDataHeader(len(fwdOpen), sessionHandle)
+func (c *Controller) forwardOpenPacket() []byte {
+	fwdOpen := c.buildCiPForwardOpen()
+	rrDataHeader := c.buildEIPSendDataHeader(len(fwdOpen))
 	return append(rrDataHeader, fwdOpen...)
 }
 
-func cipForwardOpen() []byte {
+func (c *Controller) buildCiPForwardOpen() []byte{
+
+	cipService := byte(0x54)
+	cipPathSize := byte(0x02)
+	cipClassType := byte(0x20)
+	cipClass := byte(0x06)
+	cipInstanceType := byte(0x24)
+	cipInstance := byte(0x01)
+	cipPriority := byte(0x0a)
+	cipTimeoutTicks := byte(0x0e)
+
+	cipOTConnectionID := []byte{0x02, 0x00, 0x00, 0x20}
+	cipTOConnectionID := []byte{0x01, 0x00, 0x00, 0x20}
+	cipConnectionSerialNumber := c.serialNumber
+	cipVendorID := c.vendorID
+	cipOriginatorSerialNumber := c.originatorSerialNumber
+	cipMultiplier := []byte{0x03, 0x00, 0x00, 0x00}
+	cipOTRpi := []byte{0x34, 0x12, 0x20, 0x00}
+	cipOTNetworkConnectionParameters := []byte{0xf4, 0x43}
+	cipToRpi := []byte{0x01, 0x40, 0x20, 0x00}
+	cipTONetworkConnectionParameters := []byte{0xf4, 0x43}
+
+	cipTransportTrigger := byte(0xa3)
 
 	var data []byte
-	// CIP Service
-	data = append(data, 0x54)
-	// CIP Path Size
-	data = append(data, 0x02)
-	// CIP Class Type
-	data = append(data, 0x20)
-	// CIP Class
-	data = append(data, 0x06)
-	// CIP Instance Type
-	data = append(data, 0x24)
-	// CIP Instance
-	data = append(data, 0x01)
-	// CIP Priority
-	data = append(data, 0x0a)
-	// CIP Timeout Ticks
-	data = append(data, 0x0e)
-	//CIP OT Connection ID (4 bytes)
-	data = append(data, 0x02, 0x00, 0x00, 0x20)
-	//CIP TO Connection ID (4 bytes)
-	data = append(data, 0x01, 0x00, 0x00, 0x20)
-	//CIP Connection Serial Number (2 bytes)
-	data = append(data, int32ToSliceOfBytes(true, getRandomInt(63000), 2)...)
-	//CIP Vendor ID (2 bytes)
-	data = append(data, 0x37, 0x13)
-	//DIP Originator serial number (4 bytes)
-	data = append(data, 0x2a, 0x00, 0x00, 0x00)
-	//cip multiplier (4 bytes)
-	data = append(data, 0x03, 0x00, 0x00, 0x00)
-	//cip OT RPI (4 bytes)
-	data = append(data, 0x34, 0x12, 0x20, 0x00)
-	//cip OT Network Connection Parameters (2 bytes)
-	data = append(data, 0xf4, 0x43)
-	//cip TO RPI (4 bytes)
-	data = append(data, 0x01, 0x40, 0x20, 0x00)
-	//cip TO Connection parameters (2 bytes)
-	data = append(data, 0xf4, 0x43)
-	//cip Transport trigger (1 byte)
-	data = append(data, 0xa3)
+	data = append(data, cipService, cipPathSize, cipClassType, cipClass, cipInstanceType, cipInstance, cipPriority, cipTimeoutTicks)
+	data = append(data, cipOTConnectionID...)
+	data = append(data, cipTOConnectionID...)
+	data = append(data, cipConnectionSerialNumber...)
+	data = append(data, cipVendorID...)
+	data = append(data, cipOriginatorSerialNumber...)
+	data = append(data, cipMultiplier...)
+	data = append(data, cipOTRpi...)
+	data = append(data, cipOTNetworkConnectionParameters...)
+	data = append(data, cipToRpi...)
+	data = append(data, cipTONetworkConnectionParameters...)
+	data = append(data, cipTransportTrigger)
 
-	//connection path size / 2
-	data = append(data, 0x03)
+	var connectionPath []byte
 
-	//connection path
-	data = append(data, 0x01, 0x00, 0x20, 0x02, 0x24, 0x01)
+	if c.micro800 {
+		connectionPath = append(connectionPath, 0x20, 0x02, 0x24, 0x01)
+	}else{
+		connectionPath = append(connectionPath, 0x01, byte(c.processorSlot), 0x20, 0x02, 0x24, 0x01)
+	}
+
+	cPathSize := byte(len(connectionPath) / 2)
+
+	data = append(data, cPathSize)
+	data = append(data, connectionPath...)
 
 	return data
 
 }
 
-func eipSendRRDataHeader(frameLen int, sessionHandle []byte) []byte {
+func (c *Controller) buildEIPSendDataHeader(frameLen int) []byte{
 
-	var data []byte
+	eipCommand := []byte{0x6f, 0x00}
+	eipLength := int32ToSliceOfBytes(true, 16 + frameLen, 2)
+	eipSessionHandle := c.sessionHandle
+	eipStatus := []byte{0x00, 0x00, 0x00, 0x00}
+	eipContext := c.context
+	eipOptions := []byte{0x00, 0x00, 0x00, 0x00}
+	eipInterfaceHandle := []byte{0x00, 0x00, 0x00, 0x00}
+	eipTimeout := []byte{0x00, 0x00}
+	eipItemCount := []byte{0x02, 0x00}
+	eipItem1Type := []byte{0x00, 0x00}
+	eipItem1Length := []byte{0x00, 0x00}
+	eipItem2Type := []byte{0xb2, 0x00}
+	eipItem2Length := int32ToSliceOfBytes(true, frameLen, 2)
 
-	data = append(data,0x6f, 0x00)
-	//eip length (2 bytes)
-	data = append(data, int32ToSliceOfBytes(true, 16 + frameLen, 2)...)
-	//data = append(data, 0x00)
-	//eip session handle (4 bytes) value returned by RegisterSession
-	data = append(data, sessionHandle...)
-	//eip status (4 bytes)
-	data = append(data, 0x00, 0x00, 0x00, 0x00)
-	//eip context (8 bytes)
-	data = append(data, 0x00, 0x00, 0x00, 0x00)
-	data = append(data, 0x00, 0x00, 0x00, 0x00)
-	//eip options (4 bytes)
-	data = append(data, 0x00, 0x00, 0x00, 0x00)
-	//eip interface handle (4 bytes)
-	data = append(data, 0x00, 0x00, 0x00, 0x00)
-	//eip timeout (2 bytes)
-	data = append(data, 0x00, 0x00)
-	//eip item count (2 bytes)
-	data = append(data, 0x02, 0x00)
-	//eip item 1 type (2 bytes)
-	data = append(data, 0x00, 0x00)
-	//eip item 1 length (2 bytes)
-	data = append(data, 0x00, 0x00)
-	//eip item 2 type (2 bytes)
-	data = append(data, 0xb2, 0x00)
-	//eip item 2 length
-	data = append(data, int32ToSliceOfBytes(true,frameLen, 2)...)
+	data := eipCommand
+	data = append(data, eipLength...)
+	data = append(data, eipSessionHandle...)
+	data = append(data, eipStatus...)
+	data = append(data, eipContext...)
+	data = append(data, eipOptions...)
+	data = append(data, eipInterfaceHandle...)
+	data = append(data, eipTimeout...)
+	data = append(data, eipItemCount...)
+	data = append(data, eipItem1Type...)
+	data = append(data, eipItem1Length...)
+	data = append(data, eipItem2Type...)
+	data = append(data, eipItem2Length...)
 
 	return data
 }
 
-func _getTagList(sessionHandle, otNetworkID []byte, sequenceCounter int, conn net.Conn){
-	offset := 0
-	fmt.Println("starting _getTagList")
-	//clear program names
-	//clear tagList
-	//or either create local scope programNames and tagList and return
+func (c *Controller) getTagList() error {
 
-	request := buildTagListRequest("", offset)
-	eipHeader := buildEipHeader(request, sessionHandle, otNetworkID, sequenceCounter)
+	if !c.isConnected {return errors.New("no connection with controller")}
+
+	c.offset = 0
+	fmt.Println(c.offset)
+	//program name and tag list clear
+
+	request := c.buildTagListRequest("")
+	eipHeader := c.buildEipHeader(request)
 
 	retData := make([]byte, 1028)
-	conn.Write(eipHeader)
-	retLen, _ := conn.Read(retData)
+	c.conn.Write(eipHeader)
+	retLen, _ := c.conn.Read(retData)
 
 	status, _ := bytesToInt32(true, retData[48], retData[49], 0x00, 0x00)
 
-	extractTagPacket(retData[0:retLen], "")
+	c.extractTagPacket(retData[0:retLen], "")
 
 	for status == 6 {
-		offset += 1
-		request = buildTagListRequest("", offset)
-		fmt.Printf("offset:%d - sequence counter:%d", offset, sequenceCounter)
-		eipHeader = buildEipHeader(request, sessionHandle, otNetworkID, sequenceCounter)
-		conn.Write(eipHeader)
-		retLen, _ = conn.Read(retData)
-		extractTagPacket(retData[0:retLen], "")
+		c.offset ++
+		request = c.buildTagListRequest("")
+		eipHeader = c.buildEipHeader(request)
+		c.conn.Write(eipHeader)
+		retLen, _ = c.conn.Read(retData)
+		c.extractTagPacket(retData[0:retLen], "")
 		status, _ = bytesToInt32(true, retData[48], retData[49], 0x00, 0x00)
-		fmt.Println(status)
+		fmt.Printf("status:%d - offset:%d - sequence:%d - contextPointer:%d\n",status, c.offset, c.sequenceCounter, c.contextPointer)
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println("")
+		fmt.Println("")
+
+		time.Sleep(250 * time.Millisecond)
 	}
 
 
+
+	return nil
 }
 
-func buildTagListRequest(programName string, offset int) []byte {
+func (c Controller) buildTagListRequest(programName string) []byte {
 	service := 0x55
 	var pathSegment []byte
 
@@ -171,10 +181,10 @@ func buildTagListRequest(programName string, offset int) []byte {
 
 	pathSegment = append(pathSegment, 0x20, 0x6b)
 
-	if offset < 256 {
-		pathSegment = append(pathSegment, 0x24, byte(offset))
+	if c.offset < 256 {
+		pathSegment = append(pathSegment, 0x24, byte(c.offset))
 	}else{
-		pathSegment = append(pathSegment, 0x25, byte(offset))
+		pathSegment = append(pathSegment, 0x25, 0x00, byte(c.offset), 0x00)
 	}
 
 	pathSegmentLen := len(pathSegment) / 2
@@ -196,10 +206,10 @@ func buildTagListRequest(programName string, offset int) []byte {
 
 }
 
-func buildEipHeader(tagIOI []byte, sessionHandle []byte, otNetworkID []byte, sequenceCounter int) []byte {
+func (c *Controller) buildEipHeader(tagIOI []byte) []byte {
 
-	if contextPointer == 155 {
-		contextPointer = 0
+	if c.contextPointer == 155 {
+		c.contextPointer = 0
 	}
 
 
@@ -207,11 +217,13 @@ func buildEipHeader(tagIOI []byte, sessionHandle []byte, otNetworkID []byte, seq
 	eipConnectedDataLength := byte(len(tagIOI) + 2)
 
 	eipCommand := []byte{0x70, 0x00}
-	eipLength := []byte{byte(22 + len(tagIOI)), 0x00}
-	eipSessionHandle := sessionHandle
+	temp := int32ToSliceOfBytes(true, 22 +len(tagIOI), 2)
+	eipLength := temp
+	eipSessionHandle := c.sessionHandle
 	eipStatus := []byte {0x00, 0x00, 0x00, 0x00}
-	//TODO: need to figure the contextMap purpose and values
-	eipContext := contextMap[contextPointer]
+
+	eipContext := contextMap[c.contextPointer]
+	c.contextPointer ++
 
 	eipOptions := []byte{0x00, 0x00, 0x00, 0x00}
 	eipInterfaceHandle := []byte{0x00, 0x00, 0x00, 0x00}
@@ -219,14 +231,13 @@ func buildEipHeader(tagIOI []byte, sessionHandle []byte, otNetworkID []byte, seq
 	eipItemCount := []byte{0x02, 0x00}
 	eipItem1ID := []byte{0xa1, 0x00}
 	eipItem1Length := []byte{0x04, 0x00}
-	//TODO: confirm proper implementation fo otNetworkID
-	eipItem1 := otNetworkID
-
+	eipItem1 := c.otNetWorkConnectionID
 	eipItem2ID := []byte{0xb1, 0x00}
 	eipItem2Length := []byte{byte(eipConnectedDataLength), 0x00}
-	//TODO: need to find out about the sequence counter and it's purpose.
-	//eipSequence := []byte{0x00, 0x00} //sequence counter
-	eipSequence := int32ToSliceOfBytes(true, sequenceCounter, 2)
+
+	eipSequence := int32ToSliceOfBytes(true, c.sequenceCounter, 2)
+	c.sequenceCounter ++
+	c.sequenceCounter = c.sequenceCounter % 0x10000
 
 	var eipHeaderFrame []byte
 	eipHeaderFrame = append(eipHeaderFrame, eipCommand...)

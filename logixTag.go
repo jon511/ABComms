@@ -11,7 +11,7 @@ type LogixTag struct{
 	dataType string
 }
 
-func extractTagPacket(data []byte, programName string){
+func (c *Controller) extractTagPacket(data []byte, programName string){
 	packetStart := 50
 
 	for packetStart < len(data) {
@@ -27,19 +27,21 @@ func extractTagPacket(data []byte, programName string){
 		//	fmt.Println(err)
 		//}
 
-		tagLen := int(data[packetStart + 8])
+		//tagLen := int(data[packetStart + 8])
+
+		tagLen, err := bytesToInt32(true, data[packetStart + 8], data[packetStart + 9], 0x00, 0x00)
+		if err != nil {
+			fmt.Println(err)
+		}
 
 		packet := data[packetStart:packetStart + tagLen + 10]
 
-		//offsetArr := packet[0:2]
-		//offsetArr = append(offsetArr, 0x00)
-		//offsetArr = append(offsetArr, 0x00)
-
-		//offset, err := bytesToInt32(true, offsetArr...)
+		//offset, err := bytesToInt32(true, packet[0], packet[1], 0x00, 0x00)
 		//if err != nil {
 		//	fmt.Println(err)
 		//}
 
+		//c.offset = offset
 		//fmt.Println(offset)
 
 		tag := parseLgxTag(packet, "")
@@ -60,32 +62,34 @@ func extractTagPacket(data []byte, programName string){
 }
 
 func parseLgxTag(packet []byte, programName string) LogixTag{
+	fmt.Println(string(packet))
+	fmt.Println(packet)
 	tag := LogixTag{}
-	lenArr := packet[8:10]
-	lenArr = append(lenArr, 0x00)
-	lenArr = append(lenArr, 0x00)
 
-	length, err := bytesToInt32(true, lenArr...)
+	length, err := bytesToInt32(true, packet[8], packet[9], 0x00, 0x00)
 	if err != nil {
 		fmt.Println(err)
 	}
 
+	fmt.Println(length)
 	if programName != "" {
 		tag.name = programName + "." + string(packet[10:length+10])
 	}else{
 		tag.name = string(packet[10:length + 10])
 	}
 
-	tagOffArr := packet[0:2]
-	tagOffArr = append(tagOffArr, 0x00)
-	tagOffArr = append(tagOffArr, 0x00)
+	//tagOffArr := packet[0:2]
+	//tagOffArr = append(tagOffArr, 0x00)
+	//tagOffArr = append(tagOffArr, 0x00)
+	//
+	//tag.offset, err = bytesToInt32(true , tagOffArr...)
+	//if err != nil {
+	//	fmt.Println(err)
+	//}
 
-	tag.offset, err = bytesToInt32(true , tagOffArr...)
-	if err != nil {
-		fmt.Println(err)
-	}
+	tag.offset = int(packet[0])
 
 	tag.dataType = string(packet[4])
-
+	fmt.Println(tag.name)
 	return tag
 }

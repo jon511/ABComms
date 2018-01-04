@@ -8,8 +8,6 @@ import (
 	"fmt"
 )
 
-var contextPointer int
-
 var tagList []LogixTag
 var programNames []string
 
@@ -17,14 +15,12 @@ func main() {
 
 	//controller := Controller{"10.50.201.113", 44818, "", make([]byte,4)}
 	controller := Controller{}
-	controller.ipAddress = "10.50.201.99"
-	controller.port = 44818
-	controller.sessionHandle = make([]byte, 4)
-	controller.otNetWorkConnectionID = make([]byte, 4)
-	controller.responseData = make([] byte, 1028)
-
-	conn := controller.connect()
-	controller.getTagList(conn)
+	controller.initializeController("10.50.193.55", 44818)
+	fmt.Println(controller.sequenceCounter)
+	controller.connect()
+	controller.getTagList()
+	fmt.Println(tagList)
+	fmt.Println(programNames)
 
 }
 
