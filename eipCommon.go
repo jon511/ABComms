@@ -217,7 +217,7 @@ func (c *Controller) buildEipHeader(tagIOI []byte) []byte {
 	eipConnectedDataLength := byte(len(tagIOI) + 2)
 
 	eipCommand := []byte{0x70, 0x00}
-	temp := int32ToSliceOfBytes(true, 22 +len(tagIOI), 2)
+	temp := int32ToSliceOfBytes(true, 22 + len(tagIOI), 2)
 	eipLength := temp
 	eipSessionHandle := c.sessionHandle
 	eipStatus := []byte {0x00, 0x00, 0x00, 0x00}
@@ -255,6 +255,11 @@ func (c *Controller) buildEipHeader(tagIOI []byte) []byte {
 	eipHeaderFrame = append(eipHeaderFrame, eipItem2ID...)
 	eipHeaderFrame = append(eipHeaderFrame, eipItem2Length...)
 	eipHeaderFrame = append(eipHeaderFrame, eipSequence...)
+
+	fmt.Println("eip sequence: ",eipSequence )
+	fmt.Println("offset: ", c.offset)
+	fmt.Println("eip context: ", eipContext)
+	printHex(eipContext)
 
 	return append(eipHeaderFrame, tagIOI...)
 

@@ -6,6 +6,9 @@ import (
 	"math/rand"
 	"time"
 	"fmt"
+	"math"
+	"bytes"
+	"encoding/binary"
 )
 
 var tagList []LogixTag
@@ -13,15 +16,52 @@ var programNames []string
 
 func main() {
 
+	fmt.Println(math.Float32frombits(1084227584))
+	i := math.Float32bits(5.0)
+	fmt.Println(i)
+
+	in := read_int32([]byte{0xff, 0x0f, 0x00, 0x00})
+	fmt.Println(in)
+	bs := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bs, uint32(in))
+	printHex(bs)
+
+
 	//controller := Controller{"10.50.201.113", 44818, "", make([]byte,4)}
 	controller := Controller{}
 	controller.initializeController("10.50.193.55", 44818)
 	fmt.Println(controller.sequenceCounter)
 	controller.connect()
-	controller.getTagList()
-	fmt.Println(tagList)
-	fmt.Println(programNames)
 
+	//controller.conn.Close()
+
+	//controller.testRead("rateFloat")
+	tag := LogixTag{}
+	tag.name = "rateFloat"
+	tag.controller = controller
+
+	tag.read()
+	fmt.Println(tag.dataType)
+	fmt.Println(tag.value)
+	fmt.Printf("%T", tag.value)
+
+	tag.value = 1896.56
+	tag.write()
+
+	//testWrite(controller, "testDint", 2500)
+
+
+
+	//controller.getTagList()
+	//fmt.Println(tagList)
+	//fmt.Println(programNames)
+
+}
+
+func read_int32(data []byte) (ret int32) {
+	buf := bytes.NewBuffer(data)
+	binary.Read(buf, binary.LittleEndian, &ret)
+	return
 }
 
 func printHex(data []byte){

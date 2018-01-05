@@ -3,12 +3,170 @@ package main
 import (
 	"fmt"
 	"strings"
+	"encoding/binary"
+	"math"
+	"bytes"
 )
+
+type DataTypeStruct struct {
+	name string
+	value int
+}
+
+type LogixDataTypes struct {
+	BOOL DataTypeStruct
+	SINT DataTypeStruct
+	INT DataTypeStruct
+	DINT DataTypeStruct
+	REAL DataTypeStruct
+	DWORD DataTypeStruct
+	LINT DataTypeStruct
+}
+
+var DataType = LogixDataTypes {
+	DataTypeStruct{"BOOL",0xc1},
+	DataTypeStruct{"SINT",0xc2},
+	DataTypeStruct{"INT",0xc3},
+	DataTypeStruct{"DINT",0xc4},
+	DataTypeStruct{"REAL", 0xca},
+	DataTypeStruct{"DWORD",0xd3},
+	DataTypeStruct{"LINT", 0xc5},
+	}
 
 type LogixTag struct{
 	name string
 	offset int
-	dataType string
+	dataType DataTypeStruct
+	controller Controller
+	qualityCode int
+	value interface{}
+
+}
+
+func (t *LogixTag) read(){
+
+	//TODO add error checking before attempting to read tag
+	requestService := byte(0x4c)
+	requestPath := []byte{0x91, byte(len(t.name))}
+	requestPath = append(requestPath, []byte(t.name)...)
+	if len(t.name) % 2 != 0 {
+		requestPath = append(requestPath, 0x00)
+	}
+	requestPathSize := byte(len(requestPath)/2)
+	requestData := []byte{0x01, 0x00}
+
+	//sendData := []byte{0x4c, 0x03, 0x91, 0x04, 0x72, 0x61, 0x74, 0x65, 0x01, 0x00}
+	var sendData []byte
+	sendData = append(sendData, requestService)
+	sendData = append(sendData, requestPathSize)
+	sendData = append(sendData, requestPath...)
+	sendData = append(sendData, requestData...)
+
+	data := t.controller.buildEipHeader(sendData)
+	t.controller.conn.Write(data)
+
+	resData := make([]byte, 1024)
+	len, err := t.controller.conn.Read(resData)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	response := resData[len-10:len]
+
+	//TODO add tag verification check on read
+
+	switch response[4]{
+	case 0xc1:
+		t.dataType = DataType.BOOL
+	case 0xc2:
+		t.dataType = DataType.SINT
+	case 0xc3:
+		t.dataType = DataType.INT
+	case 0xc4:
+		t.dataType = DataType.DINT
+		var retVal int32
+		buf := bytes.NewBuffer(response[6:])
+		binary.Read(buf, binary.LittleEndian, &retVal)
+		t.value = retVal
+	case 0xca:
+		t.dataType = DataType.REAL
+		var retVal uint32
+		buf := bytes.NewBuffer(response[6:])
+		binary.Read(buf, binary.LittleEndian, &retVal)
+		t.value = math.Float32frombits(retVal)
+	case 0xd3:
+		t.dataType = DataType.DWORD
+	case 0xc5:
+		t.dataType = DataType.LINT
+
+	}
+
+	printHex(response)
+}
+
+func (t LogixTag) write(){
+
+	//TODO add error checking before attempting to write tag
+
+	writeValue := make([]byte, 4)
+
+	switch t.dataType.name{
+	case "BOOL":
+		t.dataType = DataType.BOOL
+	case "SINT":
+		t.dataType = DataType.SINT
+	case "INT":
+		t.dataType = DataType.INT
+	case "DINT":
+		binary.LittleEndian.PutUint32(writeValue, t.value.(uint32))
+	case "REAL":
+		f := float32(t.value.(float64))
+		i := math.Float32bits(f)
+		binary.LittleEndian.PutUint32(writeValue, i)
+	case "DWORD":
+		t.dataType = DataType.DWORD
+	case "LINT":
+		t.dataType = DataType.LINT
+
+	}
+
+	requestService := byte(0x4D)
+
+	requestPath := []byte{0x91, byte(len(t.name))}
+	requestPath = append(requestPath, []byte(t.name)...)
+	if len(requestPath) % 2 != 0 {
+		requestPath = append(requestPath, 0x00)
+	}
+	requestPathSize := byte(len(requestPath) / 2)
+
+	requestDataType := []byte{byte(t.dataType.value), 0x00}
+	requestDataElements := []byte{0x01, 0x00}
+	requestDataValue := writeValue
+
+	var sendData []byte
+	sendData = append(sendData, requestService)
+	sendData = append(sendData, requestPathSize)
+	sendData = append(sendData, requestPath...)
+	sendData = append(sendData, requestDataType...)
+	sendData = append(sendData, requestDataElements...)
+	sendData = append(sendData, requestDataValue...)
+
+	fmt.Println("")
+	fmt.Println("write")
+	printHex(sendData)
+
+	data := t.controller.buildEipHeader(sendData)
+	t.controller.conn.Write(data)
+
+	resData := make([]byte, 1024)
+
+	len, err := t.controller.conn.Read(resData)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(resData[0:len])
+	printHex(resData[0:len])
 }
 
 func (c *Controller) extractTagPacket(data []byte, programName string){
@@ -89,7 +247,7 @@ func parseLgxTag(packet []byte, programName string) LogixTag{
 
 	tag.offset = int(packet[0])
 
-	tag.dataType = string(packet[4])
+	//tag.dataType = string(packet[4])
 	fmt.Println(tag.name)
 	return tag
 }
