@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"math"
 	"bytes"
+	"errors"
 )
 
 type DataTypeStruct struct {
@@ -43,7 +44,15 @@ type LogixTag struct{
 
 }
 
-func (t *LogixTag) read(){
+func (t *LogixTag) read() error{
+
+	if !t.controller.isValid() {
+		return errors.New("tag controller field is not valid")
+	}
+
+	if !t.controller.isConnected {
+		return errors.New("tag controller is not connected")
+	}
 
 	//TODO add error checking before attempting to read tag
 	requestService := byte(0x4c)
@@ -55,23 +64,37 @@ func (t *LogixTag) read(){
 	requestPathSize := byte(len(requestPath)/2)
 	requestData := []byte{0x01, 0x00}
 
-	//sendData := []byte{0x4c, 0x03, 0x91, 0x04, 0x72, 0x61, 0x74, 0x65, 0x01, 0x00}
 	var sendData []byte
 	sendData = append(sendData, requestService)
 	sendData = append(sendData, requestPathSize)
 	sendData = append(sendData, requestPath...)
 	sendData = append(sendData, requestData...)
-
+	fmt.Println("send data")
+	fmt.Println(sendData)
 	data := t.controller.buildEipHeader(sendData)
-	t.controller.conn.Write(data)
 
+	printHex(sendData)
+	fmt.Println(len(data))
+	t.controller.conn.Write(data)
+	printHex(data)
 	resData := make([]byte, 1024)
-	len, err := t.controller.conn.Read(resData)
+	retLen, err := t.controller.conn.Read(resData)
 	if err != nil {
 		fmt.Println(err)
 	}
+	fmt.Println("read data")
+	printHex(data)
 
-	response := resData[len-10:len]
+	startPointer := 0
+
+	for i, b := range resData{
+		if b == 0xcc{
+			startPointer = i
+			break
+		}
+	}
+
+	response := resData[startPointer:retLen]
 
 	//TODO add tag verification check on read
 
@@ -102,9 +125,17 @@ func (t *LogixTag) read(){
 	}
 
 	printHex(response)
+
+	return nil
 }
 
-func (t LogixTag) write(){
+func (t LogixTag) write() error{
+
+	if !t.controller.isConnected {
+		return errors.New("tag controller is not connected")
+	}
+
+	fmt.Printf("%T", t.value)
 
 	//TODO add error checking before attempting to write tag
 
@@ -118,7 +149,7 @@ func (t LogixTag) write(){
 	case "INT":
 		t.dataType = DataType.INT
 	case "DINT":
-		binary.LittleEndian.PutUint32(writeValue, t.value.(uint32))
+		binary.LittleEndian.PutUint32(writeValue, uint32(t.value.(int)))
 	case "REAL":
 		f := float32(t.value.(float64))
 		i := math.Float32bits(f)
@@ -151,22 +182,24 @@ func (t LogixTag) write(){
 	sendData = append(sendData, requestDataElements...)
 	sendData = append(sendData, requestDataValue...)
 
-	fmt.Println("")
-	fmt.Println("write")
-	printHex(sendData)
 
 	data := t.controller.buildEipHeader(sendData)
 	t.controller.conn.Write(data)
 
+	fmt.Println("write data")
+	printHex(data)
+
 	resData := make([]byte, 1024)
 
-	len, err := t.controller.conn.Read(resData)
+	_, err := t.controller.conn.Read(resData)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	fmt.Println(resData[0:len])
-	printHex(resData[0:len])
+	//fmt.Println(resData[0:len])
+	//printHex(resData[0:len])
+
+	return nil
 }
 
 func (c *Controller) extractTagPacket(data []byte, programName string){

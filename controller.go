@@ -36,6 +36,11 @@ type Controller struct{
 }
 
 func (c *Controller) initializeController(ipAddress string, port int){
+	if debug{
+		fmt.Printf("initializing controller at address %s", ipAddress)
+		fmt.Println("")
+	}
+
 	c.ipAddress = ipAddress
 	c.port = port
 	c.vendorID = []byte{0x37, 0x13}
@@ -48,6 +53,19 @@ func (c *Controller) initializeController(ipAddress string, port int){
 	c.sequenceCounter = 1
 	c.knownTags = make([]string, 0)
 	c.initialized = true
+
+	if debug{
+		fmt.Printf("controller at address %s is initialized", c.ipAddress)
+		fmt.Println("")
+	}
+}
+
+func (c Controller) isValid() bool{
+
+	if c.ipAddress == "" { return false }
+	if c.port == 0 { return false }
+	if !c.initialized { return false}
+	return true
 }
 
 func (c *Controller) connect() error {
@@ -61,15 +79,27 @@ func (c *Controller) connect() error {
 	}
 
 	address := fmt.Sprintf("%s:%d", c.ipAddress, c.port)
-	fmt.Println("connnecting to :", address)
 
+	if debug {
+		fmt.Printf("attempting to connect to controller at address %s", c.ipAddress)
+		fmt.Println("")
+	}
 
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		log.Println(err)
+		return errors.New(fmt.Sprintf("could not connect to controller at address %s - Error: %s", c.ipAddress, err))
+	}else{
+		if debug{
+			fmt.Println("Connected to controller at address ", c.ipAddress)
+		}
 	}
 
 	c.conn = conn
+
+	if debug {
+		fmt.Println("attempting to register session with controller")
+	}
 
 	c.conn.Write(c.buildRegisterSession())
 
@@ -79,21 +109,32 @@ func (c *Controller) connect() error {
 	if err != nil {
 		log.Println(err)
 		c.isConnected = false
+		return err
 	}else{
 		copy(c.sessionHandle, responseData[4:8])
 	}
-	printHex(c.sessionHandle)
-	printHex(c.forwardOpenPacket())
+
+	if debug{
+		fmt.Println("session registered successfully")
+		fmt.Println("attempting forward open with controller")
+	}
+
 	c.conn.Write(c.forwardOpenPacket())
 	_, err = c.conn.Read(responseData)
 	if err != nil {
 		log.Println("Foward open failed")
 		c.isConnected = false
 	}else{
+		fmt.Println("response data")
+		printHex(responseData)
+		printHex(responseData[44:48])
 		copy(c.otNetWorkConnectionID, responseData[44:48])
 		c.isConnected = true
 	}
-	printHex(responseData)
+
+	if debug{
+		fmt.Println("foward open successful")
+	}
 
 	return nil
 

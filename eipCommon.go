@@ -212,19 +212,25 @@ func (c *Controller) buildEipHeader(tagIOI []byte) []byte {
 		c.contextPointer = 0
 	}
 
+	fmt.Println("tagIOI")
+	fmt.Println(tagIOI)
 
 	//eipPayLoadLength := byte(22 + len(tagIOI))
 	eipConnectedDataLength := byte(len(tagIOI) + 2)
-
+	fmt.Printf("dl %d", eipConnectedDataLength)
 	eipCommand := []byte{0x70, 0x00}
+
 	temp := int32ToSliceOfBytes(true, 22 + len(tagIOI), 2)
+	fmt.Println(len(tagIOI))
+	fmt.Println("eip length")
+	printHex(temp)
 	eipLength := temp
 	eipSessionHandle := c.sessionHandle
 	eipStatus := []byte {0x00, 0x00, 0x00, 0x00}
 
 	eipContext := contextMap[c.contextPointer]
 	c.contextPointer ++
-
+	fmt.Printf("context header: %d", c.contextPointer)
 	eipOptions := []byte{0x00, 0x00, 0x00, 0x00}
 	eipInterfaceHandle := []byte{0x00, 0x00, 0x00, 0x00}
 	eipTimeout := []byte{0x00, 0x00}
@@ -232,9 +238,11 @@ func (c *Controller) buildEipHeader(tagIOI []byte) []byte {
 	eipItem1ID := []byte{0xa1, 0x00}
 	eipItem1Length := []byte{0x04, 0x00}
 	eipItem1 := c.otNetWorkConnectionID
+	fmt.Println("otNetworkID")
+	printHex(c.otNetWorkConnectionID)
 	eipItem2ID := []byte{0xb1, 0x00}
 	eipItem2Length := []byte{byte(eipConnectedDataLength), 0x00}
-
+	printHex(eipItem2Length)
 	eipSequence := int32ToSliceOfBytes(true, c.sequenceCounter, 2)
 	c.sequenceCounter ++
 	c.sequenceCounter = c.sequenceCounter % 0x10000
@@ -255,12 +263,8 @@ func (c *Controller) buildEipHeader(tagIOI []byte) []byte {
 	eipHeaderFrame = append(eipHeaderFrame, eipItem2ID...)
 	eipHeaderFrame = append(eipHeaderFrame, eipItem2Length...)
 	eipHeaderFrame = append(eipHeaderFrame, eipSequence...)
-
-	fmt.Println("eip sequence: ",eipSequence )
-	fmt.Println("offset: ", c.offset)
-	fmt.Println("eip context: ", eipContext)
-	printHex(eipContext)
-
+	fmt.Println("eip header")
+	printHex(eipHeaderFrame)
 	return append(eipHeaderFrame, tagIOI...)
 
 }
